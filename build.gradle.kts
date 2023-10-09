@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.publish) apply false
     alias(libs.plugins.detekt)
     alias(libs.plugins.dokka)
+    `maven-publish`
 }
 
 detekt {
