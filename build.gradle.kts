@@ -1,14 +1,14 @@
 import io.gitlab.arturbosch.detekt.Detekt
 
 plugins {
-    `maven-publish`
+    id("maven-publish")
     alias(libs.plugins.kotlin.multiplatform) apply false
     alias(libs.plugins.publish) apply false
     alias(libs.plugins.detekt)
     alias(libs.plugins.dokka)
 }
 group = "de.p72b.spatialk"
-version = "0.3.1"
+version = "0.3.3"
 
 detekt {
     buildUponDefaultConfig = true
