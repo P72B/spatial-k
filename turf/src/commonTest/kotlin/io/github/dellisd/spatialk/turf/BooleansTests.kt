@@ -1,6 +1,7 @@
 package io.github.dellisd.spatialk.turf
 
 import io.github.dellisd.spatialk.geojson.Feature
+import io.github.dellisd.spatialk.geojson.FeatureCollection
 import io.github.dellisd.spatialk.geojson.MultiPolygon
 import io.github.dellisd.spatialk.geojson.Polygon
 import io.github.dellisd.spatialk.geojson.dsl.point
@@ -219,5 +220,55 @@ class BooleansTests {
         )
 
         assertTrue(booleanPointInPolygon(pt1, poly))
+    }
+
+    @Test
+    fun booleanIntersectsFeatureCollectionsPointWithinPolygon() {
+        val geometryA =
+            FeatureCollection.fromJson(readResource("booleans/featureCollectionWithPoint.geojson"))
+        val geometryB =
+            FeatureCollection.fromJson(readResource("booleans/featureCollectionWithPolygon.geojson"))
+
+        assertTrue(booleanIntersects(geometryA, geometryB))
+    }
+
+    @Test
+    fun booleanIntersectsFeatureCollectionsPointOutsidePolygon() {
+        val geometryA =
+            FeatureCollection.fromJson(readResource("booleans/featureCollectionWithPointOutside.geojson"))
+        val geometryB =
+            FeatureCollection.fromJson(readResource("booleans/featureCollectionWithPolygon.geojson"))
+
+        assertFalse(booleanIntersects(geometryA, geometryB))
+    }
+
+    @Test
+    fun booleanIntersectsFeatureCollectionsPolygonInsidePolygon() {
+        val geometryA =
+            FeatureCollection.fromJson(readResource("booleans/featureCollectionWithPolygonInside.geojson"))
+        val geometryB =
+            FeatureCollection.fromJson(readResource("booleans/featureCollectionWithPolygon.geojson"))
+
+        assertTrue(booleanIntersects(geometryA, geometryB))
+    }
+
+    @Test
+    fun booleanIntersectsFeatureCollectionsPolygonOutsidePolygon() {
+        val geometryA =
+            FeatureCollection.fromJson(readResource("booleans/featureCollectionWithPolygonOutside.geojson"))
+        val geometryB =
+            FeatureCollection.fromJson(readResource("booleans/featureCollectionWithPolygon.geojson"))
+
+        assertFalse(booleanIntersects(geometryA, geometryB))
+    }
+
+    @Test
+    fun booleanIntersectsFeatureCollectionsPolygonTouchesPolygon() {
+        val geometryA =
+            FeatureCollection.fromJson(readResource("booleans/featureCollectionWithPolygonTouches.geojson"))
+        val geometryB =
+            FeatureCollection.fromJson(readResource("booleans/featureCollectionWithPolygon.geojson"))
+
+        assertTrue(booleanIntersects(geometryA, geometryB))
     }
 }

@@ -3,12 +3,9 @@
 
 package io.github.dellisd.spatialk.turf
 
-import io.github.dellisd.spatialk.geojson.BoundingBox
-import io.github.dellisd.spatialk.geojson.MultiPolygon
-import io.github.dellisd.spatialk.geojson.Point
-import io.github.dellisd.spatialk.geojson.Polygon
-import io.github.dellisd.spatialk.geojson.Position
+import io.github.dellisd.spatialk.geojson.*
 import kotlin.jvm.JvmOverloads
+import kotlin.math.abs
 
 /**
  * Takes a [Point] and a [Polygon] and determines if the point
@@ -43,6 +40,174 @@ fun booleanPointInPolygon(point: Point, polygon: MultiPolygon, ignoreBoundary: B
     val bbox = bbox(polygon)
     val polys = polygon.coordinates
     return booleanPointInPolygon(point.coordinates, bbox, polys, ignoreBoundary)
+}
+
+@OptIn(ExperimentalTurfApi::class)
+@Suppress("LABEL_NAME_CLASH")
+@JvmOverloads
+fun booleanIntersects(featureCollectionA: FeatureCollection, featureCollectionB: FeatureCollection): Boolean {
+    var result = false
+    featureCollectionA.flattenEach { flattenA ->
+        featureCollectionB.flattenEach { flattenB ->
+            if (result) {
+                return@flattenEach
+            }
+            result = booleanIntersects(flattenA, flattenB).not()
+        }
+    }
+    return result
+}
+
+@JvmOverloads
+fun booleanIntersects(featureA: Feature, featureB: Feature): Boolean {
+    if (featureA.geometry == null || featureB.geometry == null) return false
+    return booleanIntersects(featureA.geometry!!, featureB.geometry!!).not()
+}
+
+@JvmOverloads
+fun booleanIntersects(geometryA: Geometry, geometryB: Geometry): Boolean {
+    return booleanDisjoint(geometryA, geometryB).not()
+}
+
+@OptIn(ExperimentalTurfApi::class)
+@Suppress("LABEL_NAME_CLASH")
+@JvmOverloads
+fun booleanIntersects(geometryA: GeometryCollection, geometryB: GeometryCollection): Boolean {
+    var result = true
+    geometryA.flattenEach { flattenA ->
+        geometryB.flattenEach { flattenB ->
+            if (!result) {
+                return@flattenEach
+            }
+            result = booleanDisjoint(flattenA, flattenB);
+        }
+    }
+    return result
+}
+
+@Suppress("LABEL_NAME_CLASH")
+fun booleanDisjoint(geometryA: Geometry, geometryB: Geometry): Boolean {
+    var result = true
+    geometryA.flattenEach { flattenA ->
+        geometryB.flattenEach { flattenB ->
+            if (!result) {
+                return@flattenEach
+            }
+            result = disjoint(geometryA, geometryB);
+        }
+    }
+    return result
+}
+
+private fun disjoint(geometryA: Geometry, geometryB: Geometry): Boolean {
+    return when (geometryA) {
+        is Point -> {
+            return when (geometryB) {
+                is Point -> compareCoords(geometryA.coordinates, geometryB.coordinates).not()
+                is LineString -> isPointOnLine(geometryA, geometryB).not()
+                is Polygon -> booleanPointInPolygon(geometryA, geometryB).not()
+                else -> false
+            }
+        }
+
+        is LineString -> {
+            return when (geometryB) {
+                is Point -> isPointOnLine(geometryB, geometryA).not()
+                is LineString -> isLineOnLine(geometryA, geometryB).not()
+                is Polygon -> isLineInPoly(geometryA, geometryB).not()
+                else -> false
+            }
+        }
+
+        is Polygon -> {
+            return when (geometryB) {
+                is Point -> booleanPointInPolygon(geometryB, geometryA).not()
+                is LineString -> isLineInPoly(geometryB, geometryA).not()
+                is Polygon -> isPolyInPoly(geometryA, geometryB).not()
+                else -> false
+            }
+        }
+        else -> false
+    }
+}
+
+private fun isPolyInPoly(polygonA: Polygon, polygonB: Polygon): Boolean {
+    for (coord1 in polygonA.coordinates[0]) {
+        if (booleanPointInPolygon(Point(coord1), polygonB)) {
+            return true;
+        }
+    }
+    for (coord2 in polygonB.coordinates[0]) {
+        if (booleanPointInPolygon(Point(coord2), polygonA)) {
+            return true;
+        }
+    }
+    val doLinesIntersect = lineIntersect(
+        polygonToLine(polygonA),
+        polygonToLine(polygonB)
+    )
+    return doLinesIntersect.isNotEmpty();
+}
+
+private fun isLineInPoly(lineString: LineString, polygon: Polygon): Boolean {
+    for (coordinate in lineString.coordinates) {
+        if (booleanPointInPolygon(Point(coordinate), polygon, ignoreBoundary = false)) {
+            return true;
+        }
+    }
+    val doLinesIntersect = lineIntersect(lineString, polygonToLine(polygon));
+    return doLinesIntersect.isNotEmpty();
+}
+
+
+private fun isLineOnLine(lineStringA: LineString, lineStringB: LineString): Boolean {
+    val doLinesIntersect = lineIntersect(lineStringA, lineStringB);
+    return doLinesIntersect.isNotEmpty();
+}
+
+private fun compareCoords(positionA: Position, positionB: Position): Boolean {
+    return positionA.latitude == positionB.latitude && positionA.longitude == positionB.longitude
+}
+
+private fun isPointOnLine(point: Point, lineString: LineString): Boolean {
+    for ((index, value) in lineString.coordinates.withIndex()) {
+        if (index == lineString.coordinates.size - 1) break
+        if (isPointOnLineSegment(
+                point.coordinates.coordinates,
+                value.coordinates,
+                lineString.coordinates[index + 1].coordinates
+            )
+        ) {
+            return true
+        }
+    }
+    return false
+}
+
+private fun isPointOnLineSegment(
+    point: DoubleArray,
+    lineSegmentStart: DoubleArray,
+    lineSegmentEnd: DoubleArray
+): Boolean {
+    val dxc = point[0] - lineSegmentStart[0];
+    val dyc = point[1] - lineSegmentStart[1];
+    val dxl = lineSegmentEnd[0] - lineSegmentStart[0];
+    val dyl = lineSegmentEnd[1] - lineSegmentStart[1];
+    val cross = dxc * dyl - dyc * dxl;
+    if (cross > 0.0 || cross < 0.0) {
+        return false;
+    }
+    if (abs(dxl) >= abs(dyl)) {
+        if (dxl > 0) {
+            return lineSegmentStart[0] <= point[0] && point[0] <= lineSegmentEnd[0];
+        } else {
+            return lineSegmentEnd[0] <= point[0] && point[0] <= lineSegmentStart[0];
+        }
+    } else if (dyl > 0) {
+        return lineSegmentStart[1] <= point[1] && point[1] <= lineSegmentEnd[1];
+    } else {
+        return lineSegmentEnd[1] <= point[1] && point[1] <= lineSegmentStart[1];
+    }
 }
 
 @Suppress("ReturnCount")

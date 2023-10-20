@@ -2,17 +2,7 @@
 
 package io.github.dellisd.spatialk.turf
 
-import io.github.dellisd.spatialk.geojson.Feature
-import io.github.dellisd.spatialk.geojson.FeatureCollection
-import io.github.dellisd.spatialk.geojson.Geometry
-import io.github.dellisd.spatialk.geojson.GeometryCollection
-import io.github.dellisd.spatialk.geojson.LineString
-import io.github.dellisd.spatialk.geojson.MultiLineString
-import io.github.dellisd.spatialk.geojson.MultiPoint
-import io.github.dellisd.spatialk.geojson.MultiPolygon
-import io.github.dellisd.spatialk.geojson.Point
-import io.github.dellisd.spatialk.geojson.Polygon
-import io.github.dellisd.spatialk.geojson.Position
+import io.github.dellisd.spatialk.geojson.*
 import kotlin.jvm.JvmName
 
 @ExperimentalTurfApi
@@ -57,3 +47,45 @@ fun Feature.coordAll() = geometry?.coordAll()
 @ExperimentalTurfApi
 fun FeatureCollection.coordAll() =
     features.fold(emptyList<Position>()) { acc, feature -> acc + (feature.coordAll() ?: emptyList()) }
+
+@ExperimentalTurfApi
+fun FeatureCollection.flattenEach(callback: (Feature) -> Unit) {
+    for (feature in features) {
+        callback(feature)
+    }
+}
+
+@ExperimentalTurfApi
+fun GeometryCollection.flattenEach(callback: (Geometry) -> Unit) {
+    for (geometry in geometries) {
+        callback(geometry)
+    }
+}
+
+fun Geometry.flattenEach(callback: (Geometry) -> Unit) {
+    when (this) {
+        is GeometryCollection -> {
+            for (geometry in geometries) {
+                geometry.flattenEach(callback)
+            }
+        }
+        is LineString -> callback(this)
+        is MultiLineString -> {
+            for (lineString in coordinates) {
+                callback(LineString(lineString))
+            }
+        }
+        is MultiPoint -> {
+            for (point in coordinates) {
+                callback(Point(point))
+            }
+        }
+        is MultiPolygon -> {
+            for (polygon in coordinates) {
+                callback(Polygon(polygon))
+            }
+        }
+        is Point -> callback(this)
+        is Polygon -> callback(this)
+    }
+}
